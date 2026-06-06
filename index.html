@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rotationskörper – Vortragsdemo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0f0e0d;
+    --surface:#1a1916;
+    --surface2:#232119;
+    --border:#2e2c28;
+    --border2:#3d3b35;
+    --text:#e8e4da;
+    --text2:#8c8a82;
+    --text3:#5a5851;
+    --purple:#9b8ff4;
+    --purple-dim:rgba(155,143,244,0.15);
+    --green:#5ecba1;
+    --green-dim:rgba(94,203,161,0.15);
+    --amber:#e8b45a;
+    --amber-dim:rgba(232,180,90,0.12);
+    --font-display:'DM Serif Display',serif;
+    --font-body:'DM Sans',sans-serif;
+    --font-mono:'DM Mono',monospace;
+  }
+  html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-body)}
+  body{display:grid;grid-template-columns:300px 1fr;grid-template-rows:auto 1fr;min-height:100vh}
+
+  header{grid-column:1/-1;padding:1.25rem 2rem;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:1.5rem}
+  header h1{font-family:var(--font-display);font-size:1.5rem;font-weight:400;letter-spacing:-.01em;color:var(--text)}
+  header .sub{font-size:13px;color:var(--text3);font-family:var(--font-mono)}
+
+  aside{border-right:1px solid var(--border);padding:1.5rem 1.25rem;display:flex;flex-direction:column;gap:.5rem}
+  aside h2{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);font-weight:400;margin-bottom:.25rem}
+
+  .step-btn{
+    width:100%;text-align:left;background:transparent;border:1px solid transparent;
+    border-radius:8px;padding:.6rem .9rem;cursor:pointer;font-family:var(--font-body);
+    font-size:13px;color:var(--text2);transition:all .18s;line-height:1.4
+  }
+  .step-btn:hover{background:var(--surface);border-color:var(--border);color:var(--text)}
+  .step-btn.active{background:var(--surface2);border-color:var(--border2);color:var(--text)}
+  .step-btn .num{font-family:var(--font-mono);font-size:10px;color:var(--text3);display:block;margin-bottom:2px}
+  .step-btn.active .num{color:var(--purple)}
+  .step-btn .title{font-weight:500}
+  .step-btn .desc{font-size:11px;color:var(--text3);display:block;margin-top:2px}
+  .step-btn.active .title{color:var(--purple)}
+
+  main{padding:1.5rem 2rem;display:flex;flex-direction:column;gap:1.25rem;overflow-y:auto}
+
+  .explain{
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:1rem 1.25rem;font-size:14px;line-height:1.7;color:var(--text2)
+  }
+  .explain strong{color:var(--text);font-weight:500}
+  .formula-box{
+    background:var(--surface2);border:1px solid var(--border2);border-radius:8px;
+    padding:.6rem 1rem;font-family:var(--font-mono);font-size:13px;color:var(--purple);
+    margin-top:.6rem;display:inline-block
+  }
+
+  .canvas-row{display:grid;grid-template-columns:240px 1fr;gap:1.25rem;align-items:start}
+  .canvas-wrap{display:flex;flex-direction:column;gap:6px}
+  .canvas-label{font-size:11px;color:var(--text3);text-align:center;font-family:var(--font-mono)}
+  canvas{border-radius:10px;display:block;width:100%!important}
+
+  .controls{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--text2)}
+  .controls label{white-space:nowrap}
+  .controls input[type=range]{
+    flex:1;-webkit-appearance:none;height:4px;border-radius:2px;
+    background:var(--border2);outline:none;cursor:pointer
+  }
+  .controls input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--purple);cursor:pointer;transition:transform .15s
+  }
+  .controls input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+  .controls .nval{font-family:var(--font-mono);font-weight:500;color:var(--text);min-width:28px;text-align:right}
+
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .metric{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.75rem 1rem}
+  .metric .lb{font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-bottom:4px}
+  .metric .nb{font-size:18px;font-weight:500;color:var(--text);font-family:var(--font-mono)}
+  .metric .nb.good{color:var(--green)}
+  .metric .nb.warn{color:var(--amber)}
+  .metric .nb.bad{color:#e07070}
+
+  .integral-strip{
+    background:var(--surface2);border:1px solid var(--border2);border-radius:10px;
+    padding:.9rem 1.25rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap
+  }
+  .integral-strip .lbl{font-size:12px;color:var(--text3)}
+  .integral-strip .val{font-family:var(--font-mono);font-size:14px;color:var(--text)}
+  .integral-strip .eq{color:var(--text3);font-size:13px}
+  .progress-bar{height:4px;border-radius:2px;background:var(--border);margin-top:8px;overflow:hidden}
+  .progress-fill{height:100%;border-radius:2px;background:var(--green);transition:width .3s}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Rotationskörper</h1>
+  <span class="sub">Weinglas · Zylinderscheiben-Näherung · Vortragsdemo</span>
+</header>
+
+<aside>
+  <h2>Schritte</h2>
+  <button class="step-btn active" onclick="activate(0)">
+    <span class="num">00</span>
+    <span class="title">Ausgangsfunktion</span>
+    <span class="desc">Das Weinglas-Profil</span>
+  </button>
+  <button class="step-btn" onclick="activate(1)">
+    <span class="num">01</span>
+    <span class="title">Erste Scheibe</span>
+    <span class="desc">Idee: ein Zylinder</span>
+  </button>
+  <button class="step-btn" onclick="activate(2)">
+    <span class="num">02</span>
+    <span class="title">Wenige Scheiben</span>
+    <span class="desc">n = 5 · grobe Näherung</span>
+  </button>
+  <button class="step-btn" onclick="activate(3)">
+    <span class="num">03</span>
+    <span class="title">Grenzwert n → ∞</span>
+    <span class="desc">Das Integral</span>
+  </button>
+
+  <div style="margin-top:auto;padding-top:1.5rem;border-top:1px solid var(--border)">
+    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);line-height:2">
+      f(x) = 1/x<br>
+      x ∈ [1 ; 4]<br>
+      Einheit: cm
+    </div>
+  </div>
+</aside>
+
+<main>
+  <div class="explain" id="ebox">Wähle einen Schritt in der linken Leiste.</div>
+
+  <div class="canvas-row">
+    <div class="canvas-wrap">
+      <canvas id="cv2d" width="480" height="560"></canvas>
+      <div class="canvas-label">Querschnitt · f(x)</div>
+    </div>
+    <div class="canvas-wrap" style="position:relative">
+      <canvas id="cv3d" width="760" height="560" style="cursor:grab"></canvas>
+      <button id="playbtn" onclick="toggleAnim()" style="position:absolute;top:10px;right:10px;background:rgba(15,14,13,0.8);border:1px solid #3d3b35;border-radius:6px;color:#8c8a82;font-size:12px;padding:5px 12px;cursor:pointer;font-family:'DM Mono',monospace;backdrop-filter:blur(4px)">⏸ Pause</button>
+      <div class="canvas-label">Rotationskörper · 3D · Drag zum Drehen</div>
+    </div>
+  </div>
+
+  <div class="controls" id="slider-row">
+    <label>Scheiben n =</label>
+    <input type="range" id="nsl" min="1" max="50" step="1" value="5" oninput="onSlider(this.value)">
+    <span class="nval" id="nval">5</span>
+  </div>
+
+  <div class="metrics" id="metrics-row">
+    <div class="metric">
+      <div class="lb">Anzahl Scheiben</div>
+      <div class="nb" id="mn">5</div>
+    </div>
+    <div class="metric">
+      <div class="lb">Δx (Breite)</div>
+      <div class="nb" id="mdx">–</div>
+    </div>
+    <div class="metric">
+      <div class="lb">Näherung V ≈</div>
+      <div class="nb" id="mv">–</div>
+    </div>
+    <div class="metric">
+      <div class="lb">Fehler</div>
+      <div class="nb" id="merr">–</div>
+    </div>
+  </div>
+
+  <div class="integral-strip">
+    <div>
+      <div class="lbl">Näherungs-Formel</div>
+      <div class="val" id="sum-formula">V ≈ π · Σ [f(xᵢ)]² · Δx</div>
+    </div>
+    <div class="eq">→</div>
+    <div>
+      <div class="lbl">Im Grenzwert (n→∞)</div>
+      <div class="val" style="color:var(--purple)">V = π · ∫₁⁴ [f(x)]² dx</div>
+    </div>
+    <div style="margin-left:auto;text-align:right">
+      <div class="lbl">Exaktes Volumen</div>
+      <div class="val" id="mexact" style="color:var(--green)">–</div>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-bottom:6px">Genauigkeit der Näherung</div>
+    <div class="progress-bar"><div class="progress-fill" id="pbar" style="width:0%"></div></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:4px" id="ptext">–</div>
+  </div>
+</main>
+
+<script>
+const steps=[
+  {n:0, text:`Das <strong>Weinglas-Profil</strong> wird durch die Funktion <strong>f(x) = 1/x</strong> (in cm) beschrieben. Rotiert die Fläche unter f(x) auf [0; 4] um die x-Achse, entsteht der Rotationskörper – unser Weinglas. <br><br>Ziel: Das <strong>Volumen V</strong> dieses Körpers berechnen.`},
+  {n:1, text:`<strong>Idee:</strong> Wir nähern den Körper durch dünne <strong>Zylinder</strong> an. Ein einzelner Zylinder mit Radius r = f(xᵢ) und Höhe Δx hat das Volumen <br><span class="formula-box">V₁ = π · [f(xᵢ)]² · Δx</span><br><br>Das ist der Grundstein – aus vielen solchen Zylindern bauen wir das Glas.`},
+  {n:5, text:`Mit <strong>n = 5 Scheiben</strong> ergibt die Summe aller Zylindervolumen eine erste Näherung. Die Treppenstufen zeigen deutlich, dass das noch ungenau ist – aber die <strong>Grundidee funktioniert</strong>. Je mehr Scheiben, desto genauer. Beachte: der Fehler ist noch groß.`},
+  {n:50, text:`Im <strong>Grenzwert n → ∞</strong> (hier: n = 50) werden die Scheiben unendlich dünn – Δx → 0. Die Summe wird zum <strong>Integral</strong>:<br><span class="formula-box">V = π · ∫₀⁴ [f(x)]² dx</span><br><br>Der Fehler ist jetzt so gut wie null. Das Integral liefert den exakten Wert.`},
+];
+
+let curStep=0;
+
+const X0=1, X1=4;
+function f(x){return 1/x;}
+function numInt(n){
+  const h=(X1-X0)/n; let s=0;
+  for(let i=0;i<n;i++){const xm=X0+(i+.5)*h;s+=f(xm)**2*h;}
+  return Math.PI*s;
+}
+const EXACT=numInt(4000);
+
+function activate(i){
+  curStep=i;
+  document.querySelectorAll('.step-btn').forEach((b,j)=>b.classList.toggle('active',j===i));
+  const s=steps[i];
+  document.getElementById('ebox').innerHTML=s.text;
+  const n=s.n>0?s.n:1;
+  document.getElementById('nsl').value=n;
+  document.getElementById('nval').textContent=n;
+  const hide = i===3;
+  document.getElementById('slider-row').style.display = hide ? 'none' : '';
+  document.getElementById('metrics-row').style.display = hide ? 'none' : '';
+  draw(n, i===0 || i===3);
+}
+
+function onSlider(v){
+  v=+v;
+  document.getElementById('nval').textContent=v;
+  draw(v, curStep===0);
+}
+
+function draw(n, profileOnly){
+  updateMetrics(n, profileOnly);
+  draw2d(n, profileOnly);
+  draw3d(n, profileOnly);
+}
+
+function updateMetrics(n, profileOnly){
+  const Vn = profileOnly ? EXACT : numInt(n);
+  const dx = (X1-X0)/n;
+  const err = Math.abs(Vn-EXACT)/EXACT*100;
+  document.getElementById('mn').textContent = n;
+  document.getElementById('mdx').textContent = dx.toFixed(3)+' cm';
+  document.getElementById('mv').textContent = (Vn/1000*1000).toFixed(2)+' cm³';
+  document.getElementById('mexact').textContent = (EXACT/1000*1000).toFixed(2)+' cm³';
+  const el=document.getElementById('merr');
+  el.textContent = profileOnly ? '0,00%' : err.toFixed(2)+'%';
+  el.className='nb '+(err<1?'good':err<10?'warn':'bad');
+  const acc = (curStep===3) ? 100 : profileOnly ? 100 : Math.max(0,100-err);
+  document.getElementById('pbar').style.width=acc.toFixed(1)+'%';
+  document.getElementById('ptext').textContent = profileOnly
+    ? 'Exaktes Integral – 100% Genauigkeit'
+    : `Näherung mit n=${n} Scheiben – ${acc.toFixed(1)}% Genauigkeit`;
+}
+
+function draw2d(n, profileOnly){
+  const cv=document.getElementById('cv2d');
+  const ctx=cv.getContext('2d');
+  const W=cv.width, H=cv.height;
+  const PL=44,PR=16,PT=24,PB=36;
+  const PW=W-PL-PR, PH=H-PT-PB;
+  const maxR=f(X0)+0.1;
+  function tx(x){return PL+(x-X0)/(X1-X0)*PW;}
+  function ty(r){return PT+PH*(1-r/maxR);}
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1a1916'; ctx.beginPath(); ctx.roundRect(0,0,W,H,10); ctx.fill();
+
+  if(!profileOnly){
+    const dx=(X1-X0)/n;
+    for(let i=0;i<n;i++){
+      const xi=X0+i*dx, xm=xi+dx/2;
+      const ri=f(xm);
+      const bx=tx(xi), bw=tx(xi+dx)-tx(xi);
+      const by=ty(ri), bh=ty(0)-by;
+      ctx.fillStyle='rgba(155,143,244,0.18)';
+      ctx.fillRect(bx,by,bw,bh);
+      ctx.strokeStyle='#9b8ff4'; ctx.lineWidth=0.8;
+      ctx.strokeRect(bx,by,bw,bh);
+    }
+  }
+
+  ctx.beginPath();
+  for(let i=0;i<=300;i++){
+    const x=X0+i/300*(X1-X0);
+    i===0?ctx.moveTo(tx(x),ty(f(x))):ctx.lineTo(tx(x),ty(f(x)));
+  }
+  ctx.lineTo(tx(X1),ty(0)); ctx.lineTo(tx(X0),ty(0)); ctx.closePath();
+  if(curStep===3){
+    ctx.fillStyle='rgba(155,143,244,0.25)';
+    ctx.fill();
+    }
+  ctx.strokeStyle = curStep===3 ? '#9b8ff4' : '#5ecba1';
+  ctx.beginPath();
+  for(let i=0;i<=300;i++){
+    const x=X0+i/300*(X1-X0);
+    i===0?ctx.moveTo(tx(x),ty(f(x))):ctx.lineTo(tx(x),ty(f(x)));
+  }
+  ctx.strokeStyle = curStep===3 ? '#9b8ff4' : '#5ecba1'; ctx.lineWidth=2.5; ctx.stroke();
+
+  // Axes — yellow
+  const axisCol = '#e8b45a';
+  ctx.strokeStyle=axisCol; ctx.lineWidth=1.5;
+  // y-axis
+  ctx.beginPath(); ctx.moveTo(PL,PT-8); ctx.lineTo(PL,PT+PH+6); ctx.stroke();
+  // y-axis arrow
+  ctx.beginPath(); ctx.moveTo(PL,PT-8); ctx.lineTo(PL-4,PT+4); ctx.moveTo(PL,PT-8); ctx.lineTo(PL+4,PT+4); ctx.stroke();
+  // x-axis
+  ctx.beginPath(); ctx.moveTo(PL-6,PT+PH); ctx.lineTo(PL+PW+8,PT+PH); ctx.stroke();
+  // x-axis arrow
+  ctx.beginPath(); ctx.moveTo(PL+PW+8,PT+PH); ctx.lineTo(PL+PW-4,PT+PH-4); ctx.moveTo(PL+PW+8,PT+PH); ctx.lineTo(PL+PW-4,PT+PH+4); ctx.stroke();
+
+  // axis labels — yellow
+  ctx.fillStyle=axisCol; ctx.font='bold 13px DM Sans, sans-serif';
+  ctx.textAlign='left'; ctx.fillText('x', PL+PW+12, PT+PH+5);
+  ctx.textAlign='center'; ctx.fillText('y', PL, PT-14);
+
+  // tick numbers
+  ctx.fillStyle='#5a5851'; ctx.font='11px DM Mono, monospace'; ctx.textAlign='center';
+  for(let v=X0;v<=X1;v++){ctx.fillText(v, tx(v), PT+PH+18);}
+  ctx.textAlign='right';
+  [1,2,2.5].forEach(r=>{
+    ctx.fillText(r.toFixed(1), PL-6, ty(r)+4);
+    ctx.strokeStyle='#2e2c28'; ctx.lineWidth=0.5;
+    ctx.beginPath(); ctx.moveTo(PL,ty(r)); ctx.lineTo(PL+PW,ty(r)); ctx.stroke();
+  });
+}
+
+// ── 3D animation state ──────────────────────────────────────────
+let azimuth = 0.4;        // horizontal rotation angle (radians)
+let elevation = 0.32;     // vertical tilt
+let animRunning = true;
+let animRAF = null;
+let last3dN = 1;
+let last3dProfile = true;
+
+// drag state
+let dragging = false, dragX0 = 0, dragY0 = 0, azStart = 0, elStart = 0;
+const cv3 = document.getElementById('cv3d');
+cv3.addEventListener('mousedown', e=>{
+  dragging=true; dragX0=e.clientX; dragY0=e.clientY;
+  azStart=azimuth; elStart=elevation;
+  cv3.style.cursor='grabbing';
+  stopAnim();
+});
+window.addEventListener('mousemove', e=>{
+  if(!dragging) return;
+  azimuth  = azStart  + (e.clientX - dragX0) * 0.008;
+  elevation= elStart  - (e.clientY - dragY0) * 0.006;
+  elevation= Math.max(-0.9, Math.min(0.9, elevation));
+  draw3d(last3dN, last3dProfile);
+});
+window.addEventListener('mouseup', ()=>{
+  if(!dragging) return;
+  dragging=false; cv3.style.cursor='grab';
+  startAnim();
+});
+
+// touch drag
+cv3.addEventListener('touchstart', e=>{
+  const t=e.touches[0];
+  dragging=true; dragX0=t.clientX; dragY0=t.clientY;
+  azStart=azimuth; elStart=elevation;
+  stopAnim();
+},{passive:true});
+cv3.addEventListener('touchmove', e=>{
+  if(!dragging) return;
+  const t=e.touches[0];
+  azimuth  = azStart  + (t.clientX - dragX0) * 0.008;
+  elevation= elStart  - (t.clientY - dragY0) * 0.006;
+  elevation= Math.max(-0.9, Math.min(0.9, elevation));
+  draw3d(last3dN, last3dProfile);
+},{passive:true});
+cv3.addEventListener('touchend', ()=>{
+  dragging=false; startAnim();
+});
+
+function toggleAnim(){
+  if(animRunning) stopAnim(); else startAnim();
+}
+function stopAnim(){
+  animRunning=false;
+  if(animRAF){cancelAnimationFrame(animRAF); animRAF=null;}
+  document.getElementById('playbtn').textContent='▶ Play';
+}
+function startAnim(){
+  animRunning=true;
+  document.getElementById('playbtn').textContent='⏸ Pause';
+  let last=null;
+  function tick(ts){
+    if(!animRunning) return;
+    if(last!==null) azimuth += (ts-last)*0.0006;
+    last=ts;
+    draw3d(last3dN, last3dProfile);
+    animRAF=requestAnimationFrame(tick);
+  }
+  animRAF=requestAnimationFrame(tick);
+}
+
+// ── draw3d ───────────────────────────────────────────────────────
+function draw3d(n, profileOnly){
+  last3dN=n; last3dProfile=profileOnly;
+  const cv=document.getElementById('cv3d');
+  const ctx=cv.getContext('2d');
+  const W=cv.width, H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1a1916'; ctx.beginPath(); ctx.roundRect(0,0,W,H,10); ctx.fill();
+
+  // isometric-style projection with rotating azimuth + elevation
+  const cx=W*0.5, cy=H*0.5;
+  const scale=115;
+  const NP=80;
+
+  // 3D rotation: x-axis = along glass axis, y/z = radial
+  // world coords: gx = along axis [0..4], gy = radius * cos(phi), gz = radius * sin(phi)
+  // camera: rotate around glass axis by azimuth, tilt by elevation
+  const cosA=Math.cos(azimuth), sinA=Math.sin(azimuth);
+  const cosE=Math.cos(elevation), sinE=Math.sin(elevation);
+
+  function project(gx, gy, gz){
+    // rotate around glass axis (x axis in world) by azimuth
+    const ry = gy*cosA - gz*sinA;
+    const rz = gy*sinA + gz*cosA;
+    // now tilt: rotate around new y axis by elevation
+    const fx = gx*cosE + rz*sinE;
+    const fz = -gx*sinE + rz*cosE;
+    // orthographic screen projection
+    // map glass axis [0..4] centered → screen
+    const sx = cx + (fx - 2)*scale*0.75;
+    const sy = cy - ry*scale - fz*scale*0.18;
+    return {px:sx, py:sy, depth: fz};
+  }
+
+  // collect faces for depth sorting
+  const faces=[];
+
+  // glass surface: latitude strips
+  const NLONG=36, NLAT=60;
+  for(let li=0;li<NLAT;li++){
+    const xa=X0+li/NLAT*(X1-X0);
+    const xb=X0+(li+1)/NLAT*(X1-X0);
+    const ra=f(xa), rb=f(xb);
+    for(let ti=0;ti<NLONG;ti++){
+      const tha=ti/NLONG*Math.PI*2;
+      const thb=(ti+1)/NLONG*Math.PI*2;
+      const pts=[
+        project(xa, ra*Math.cos(tha), ra*Math.sin(tha)),
+        project(xa, ra*Math.cos(thb), ra*Math.sin(thb)),
+        project(xb, rb*Math.cos(thb), rb*Math.sin(thb)),
+        project(xb, rb*Math.cos(tha), rb*Math.sin(tha)),
+      ];
+      const depth=(pts[0].depth+pts[1].depth+pts[2].depth+pts[3].depth)/4;
+      faces.push({type:'glass', pts, depth});
+    }
+  }
+
+  // end caps for step 3 (closed solid ends)
+  if(curStep===3){
+    for(let ti=0;ti<NLONG;ti++){
+      const tha=ti/NLONG*Math.PI*2;
+      const thb=(ti+1)/NLONG*Math.PI*2;
+      // left cap at X0
+      const rA=f(X0);
+      const capL=[
+        project(X0,0,0),
+        project(X0,rA*Math.cos(tha),rA*Math.sin(tha)),
+        project(X0,rA*Math.cos(thb),rA*Math.sin(thb)),
+      ];
+      faces.push({type:'endcap', pts:capL, depth:(capL[0].depth+capL[1].depth+capL[2].depth)/3});
+      // right cap at X1
+      const rB=f(X1);
+      const capR=[
+        project(X1,0,0),
+        project(X1,rB*Math.cos(tha),rB*Math.sin(tha)),
+        project(X1,rB*Math.cos(thb),rB*Math.sin(thb)),
+      ];
+      faces.push({type:'endcap', pts:capR, depth:(capR[0].depth+capR[1].depth+capR[2].depth)/3});
+    }
+  }
+
+  // cylinders
+  if(!profileOnly){
+    const dx=(X1-X0)/n;
+    for(let i=0;i<n;i++){
+      const xa=X0+i*dx, xb=xa+dx;
+      const rm=f(xa+dx/2);
+      for(let ti=0;ti<NLONG;ti++){
+        const tha=ti/NLONG*Math.PI*2;
+        const thb=(ti+1)/NLONG*Math.PI*2;
+        // side quad
+        const pts=[
+          project(xa, rm*Math.cos(tha), rm*Math.sin(tha)),
+          project(xa, rm*Math.cos(thb), rm*Math.sin(thb)),
+          project(xb, rm*Math.cos(thb), rm*Math.sin(thb)),
+          project(xb, rm*Math.cos(tha), rm*Math.sin(tha)),
+        ];
+        const depth=(pts[0].depth+pts[1].depth+pts[2].depth+pts[3].depth)/4;
+        faces.push({type:'cyl', pts, depth});
+        // caps
+        const capA=[project(xa,0,0),...[tha,thb].map(th=>project(xa,rm*Math.cos(th),rm*Math.sin(th)))];
+        const capB=[project(xb,0,0),...[tha,thb].map(th=>project(xb,rm*Math.cos(th),rm*Math.sin(th)))];
+        faces.push({type:'cap', pts:capA, depth:project(xa,0,0).depth});
+        faces.push({type:'cap', pts:capB, depth:project(xb,0,0).depth});
+      }
+    }
+  }
+
+  // painter's algorithm
+  faces.sort((a,b)=>a.depth-b.depth);
+
+  for(const face of faces){
+    ctx.beginPath();
+    face.pts.forEach((p,i)=>i===0?ctx.moveTo(p.px,p.py):ctx.lineTo(p.px,p.py));
+    ctx.closePath();
+    if(face.type==='glass'){
+      ctx.fillStyle = curStep===3 ? 'rgba(155,143,244,0.75)' : 'rgba(94,203,161,0.09)';
+      ctx.fill();
+      if(curStep!==3){
+        ctx.strokeStyle='rgba(94,203,161,0.28)';
+        ctx.lineWidth=0.4; ctx.stroke();
+      }
+    } else if(face.type==='endcap'){
+      ctx.fillStyle='rgba(155,143,244,0.85)';
+      ctx.fill();
+    } else if(face.type==='cyl'){
+      ctx.fillStyle='rgba(155,143,244,0.25)';
+      ctx.fill();
+      ctx.strokeStyle='rgba(155,143,244,0.6)';
+      ctx.lineWidth=0.5; ctx.stroke();
+    } else {
+      ctx.fillStyle='rgba(155,143,244,0.35)';
+      ctx.fill();
+      ctx.strokeStyle='rgba(155,143,244,0.5)';
+      ctx.lineWidth=0.4; ctx.stroke();
+    }
+  }
+
+  // ── Axes ─────────────────────────────────────────────────────
+  const axisCol3d = '#e8b45a';
+
+  function drawArrow(x0, y0, x1, y1, label, lox, loy){
+    const ddx=x1-x0, ddy=y1-y0;
+    const len=Math.sqrt(ddx*ddx+ddy*ddy)||1;
+    const ux=ddx/len, uy=ddy/len;
+    // dashed negative stub
+    ctx.beginPath();
+    ctx.moveTo(x0,y0); ctx.lineTo(x0-ux*28, y0-uy*28);
+    ctx.strokeStyle='rgba(232,180,90,0.3)'; ctx.lineWidth=1; ctx.setLineDash([3,4]); ctx.stroke();
+    ctx.setLineDash([]);
+    // shaft
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1);
+    ctx.strokeStyle=axisCol3d; ctx.lineWidth=1.8; ctx.stroke();
+    // arrowhead
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x1-ux*9+uy*4, y1-uy*9-ux*4);
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x1-ux*9-uy*4, y1-uy*9+ux*4);
+    ctx.strokeStyle=axisCol3d; ctx.lineWidth=1.5; ctx.stroke();
+    // label
+    ctx.fillStyle=axisCol3d; ctx.font='bold 13px DM Sans, sans-serif'; ctx.textAlign='left';
+    ctx.fillText(label, x1+lox, y1+loy);
+  }
+
+  // Origin = left end of rotation axis projected onto screen
+  // This guarantees the x-axis starts exactly on the body's rotation axis
+  const origPt = project(X0, 0, 0);
+  const ox = origPt.px, oy = origPt.py;
+
+  // x: follows the projected rotation axis — rotates with the body
+  const xTip = project(X1 + 0.5, 0, 0);
+  drawArrow(ox, oy, xTip.px, xTip.py, 'x', 8, 4);
+
+  // y: fixed screen-space — always straight up
+  drawArrow(ox, oy, ox, oy - 130, 'y', 6, -4);
+
+  // z: fixed screen-space — always bottom-right (into-depth convention)
+  drawArrow(ox, oy, ox + 63, oy + 45, 'z', 6, 4);
+}
+
+activate(0);
+startAnim();
+</script>
+</body>
+</html>
