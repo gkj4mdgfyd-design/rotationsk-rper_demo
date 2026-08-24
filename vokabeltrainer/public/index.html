@@ -89,7 +89,7 @@
   <section class="panel">
     <button class="btn ghost small" id="import-back-btn">&larr; Zurueck zum Stapel</button>
     <h2>Foto oder PDF importieren</h2>
-    <p class="muted">Lade ein Foto (JPG/PNG) oder ein PDF deiner Vokabelliste oder Mitschrift hoch. Die KI erkennt automatisch Begriff-Erklaerung-Paare, die du danach pruefen und bearbeiten kannst.</p>
+    <p class="muted">Lade ein Foto (JPG/PNG) oder ein PDF deiner Vokabelliste oder Mitschrift hoch. Der Text wird automatisch erkannt (Texterkennung/OCR) und in Begriff-Erklaerung-Paare aufgeteilt, wenn die Zeile ein Trennzeichen wie "-", "=", ":" oder Tabulator enthaelt. Das Ergebnis kannst du danach pruefen und bearbeiten. Am besten funktioniert das bei Listen mit einem Begriffspaar pro Zeile.</p>
 
     <div class="upload-box" id="upload-box">
       <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" hidden>
@@ -98,7 +98,7 @@
     </div>
     <p class="error" id="import-error"></p>
     <div id="import-loading" class="hidden loading-row">
-      <div class="spinner"></div> KI analysiert die Datei ...
+      <div class="spinner"></div> Text wird erkannt ...
     </div>
 
     <div id="import-review" class="hidden">

@@ -1,10 +1,12 @@
 # Vokabeltrainer
 
-Eine Lern-App fuer Vokabeln und nicht-fremdsprachige Fachbegriffe:
+Eine Lern-App fuer Vokabeln und nicht-fremdsprachige Fachbegriffe &ndash; komplett kostenlos,
+ohne API-Keys oder Drittanbieter-Kosten.
 
-- **Import per Foto/PDF**: Ein Foto oder PDF (z.B. Schulheft, Skript, Lehrbuchseite) hochladen &ndash;
-  Claude erkennt automatisch Begriff-Erklaerung-Paare, die vor dem Speichern noch geprueft und
-  bearbeitet werden koennen.
+- **Import per Foto/PDF**: Ein Foto oder PDF (z.B. Schulheft, Skript, Lehrbuchseite) hochladen.
+  Der Text wird per Texterkennung (OCR) automatisch gelesen und zeilenweise in Begriff-Erklaerung-
+  Paare aufgeteilt, wenn ein Trennzeichen wie "-", "=", ":" oder ein Tabulator erkennbar ist.
+  Das Ergebnis kann vor dem Speichern geprueft und korrigiert werden.
 - **Karteikarten-Modus**: Begriff ansehen, umdrehen, sich selbst bewerten (Nochmal/Schwer/Gut/Leicht).
 - **Tipp-Training**: Begriff oder Erklaerung wird abgefragt, die Antwort muss eingetippt werden
   (kleine Tippfehler werden toleriert).
@@ -16,8 +18,9 @@ Eine Lern-App fuer Vokabeln und nicht-fremdsprachige Fachbegriffe:
 ## Voraussetzungen
 
 - Node.js ab Version 22.5 (fuer `node:sqlite`)
-- Ein Anthropic-API-Key **nur fuer den KI-Import** (Karteikarten-Lernen und Tipp-Training
-  funktionieren auch ohne Key)
+- Internetzugang beim allerersten Foto-Import (die Texterkennung laedt sich einmalig die
+  Sprachdaten fuer Deutsch/Englisch herunter und cached sie danach lokal &ndash; keine laufenden
+  Kosten, kein Account noetig)
 
 ## Einrichtung
 
@@ -27,16 +30,14 @@ npm install
 cp .env.example .env
 ```
 
-Dann `.env` oeffnen und ausfuellen:
+Dann `.env` oeffnen und `JWT_SECRET` setzen (eine beliebige lange Zufallszeichenkette zum
+Signieren der Login-Session). Zum Erzeugen z.B.:
 
-- `JWT_SECRET`: eine beliebige lange Zufallszeichenkette (zum Signieren der Login-Session).
-  Zum Erzeugen z.B.: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
-- `ANTHROPIC_API_KEY`: dein API-Key von [console.anthropic.com](https://console.anthropic.com)
-  (Account anlegen &rarr; Zahlungsmethode hinterlegen &rarr; unter "API Keys" einen neuen Key
-  erzeugen). Ohne diesen Key startet die App trotzdem, nur der Foto/PDF-Import zeigt dann eine
-  Fehlermeldung an.
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
-`.env` wird nicht ins Git-Repo eingecheckt (siehe `.gitignore`) &ndash; der Key bleibt lokal bei dir.
+`.env` wird nicht ins Git-Repo eingecheckt (siehe `.gitignore`).
 
 ## Starten
 
@@ -53,9 +54,11 @@ Fuer die Entwicklung mit automatischem Neustart bei Aenderungen: `npm run dev`.
 
 - **Backend**: Node.js + Express, Datenbank via eingebautes `node:sqlite` (keine native
   Kompilierung noetig), Login per JWT in einem httpOnly-Cookie, Passwoerter gehasht mit bcrypt.
-- **KI-Import**: Fotos/PDFs werden direkt (per Vision bzw. Dokument-Input) an die Anthropic
-  Claude API geschickt, die strukturiert Begriff/Erklaerung/Beispielsatz zurueckgibt
-  (kein separater OCR-Schritt noetig).
+- **Import**: Bilder werden mit `tesseract.js` (kostenlose, lokal laufende OCR-Engine) erkannt.
+  PDFs mit eingebettetem Text werden direkt mit `pdf-parse` ausgelesen; eingescannte/fotografierte
+  PDFs ohne Textebene werden aktuell nicht unterstuetzt (dafuer stattdessen ein Foto der Seite
+  hochladen). Der erkannte Text wird zeilenweise per einfacher Mustererkennung in Begriff und
+  Erklaerung aufgeteilt.
 - **Frontend**: reines HTML/CSS/JavaScript ohne Build-Schritt, im gleichen dunklen Stil wie die
   Rotationskoerper-Demo in diesem Repository.
 - **Lernlogik**: `server/srs.js` implementiert den SM-2-Algorithmus. Falsch beantwortete Karten
@@ -73,6 +76,10 @@ Fuer die Entwicklung mit automatischem Neustart bei Aenderungen: `npm run dev`.
 
 ## Bekannte Grenzen (moegliche naechste Schritte)
 
+- Die automatische Begriff/Erklaerung-Trennung ist eine einfache Mustererkennung (kein KI-
+  Sprachverstaendnis) &ndash; funktioniert am besten bei Listen mit klarem Trennzeichen pro Zeile
+  (z.B. "Apfel - Apple"). Zeilen ohne erkennbares Muster landen als Begriff ohne Erklaerung in der
+  Pruefliste und koennen dort von Hand ergaenzt werden.
+- Eingescannte/fotografierte PDFs ohne Textebene werden nicht per OCR gelesen (nur echte Fotos).
 - Statistik-Ansicht zeigt aktuell nur einfache Kennzahlen pro Stapel, keine Verlaufsdiagramme.
-- Import verarbeitet eine Datei pro Durchgang (mehrfach nacheinander moeglich).
 - Kein Passwort-Reset-Flow.

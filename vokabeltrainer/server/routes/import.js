@@ -1,8 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
-import Anthropic from "@anthropic-ai/sdk";
-import { z } from "zod";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { createWorker } from "tesseract.js";
+import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { db } from "../db.js";
 import { requireAuth } from "../auth.js";
 
@@ -21,80 +20,124 @@ const upload = multer({
   },
 });
 
-const ExtractedItemsSchema = z.object({
-  items: z.array(
-    z.object({
-      term: z.string().describe("Die Vokabel oder der Fachbegriff"),
-      definition: z.string().describe("Uebersetzung bzw. Erklaerung des Begriffs"),
-      example: z.string().optional().describe("Beispielsatz aus der Vorlage, falls vorhanden, sonst leer"),
-    })
-  ),
-});
-
 function getOwnedDeck(deckId, userId) {
   return db.prepare("SELECT * FROM decks WHERE id = ? AND user_id = ?").get(deckId, userId);
 }
 
-importRouter.post("/extract", upload.single("file"), async (req, res) => {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(503).json({
-      error:
-        "Kein ANTHROPIC_API_KEY konfiguriert. Bitte in der .env-Datei einen Anthropic-API-Key eintragen, siehe README.",
-    });
+// Trennt eine Textzeile in Begriff + Erklaerung, wenn ein typisches
+// Listen-Trennzeichen erkennbar ist ("Apfel - Apple", "Haus = house",
+// "der Hund: the dog", per Tabulator oder mit >=2 Leerzeichen getrennt).
+const SPLIT_PATTERNS = [
+  /\t+/, // Tabulator (z.B. aus Tabellen kopiert)
+  /\s{2,}/, // mehrere Leerzeichen (Spaltenausrichtung)
+  /\s[-–—]\s/, // " - ", " – ", " — "
+  /\s*=\s*/, // "="
+  /:\s+/, // ": "
+];
+
+function splitLine(line) {
+  for (const pattern of SPLIT_PATTERNS) {
+    const parts = line.split(pattern);
+    if (parts.length === 2 && parts[0].trim() && parts[1].trim()) {
+      return { term: parts[0].trim(), definition: parts[1].trim() };
+    }
   }
+  return null;
+}
+
+function parseLinesToItems(text) {
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const items = [];
+  for (const line of lines) {
+    const split = splitLine(line);
+    if (split) {
+      items.push({ term: split.term, definition: split.definition, example: "" });
+    } else if (line.length > 1 && line.length < 80) {
+      // Kein Trennzeichen erkannt - als Begriff ohne Erklaerung uebernehmen,
+      // damit nichts verloren geht; die Erklaerung kann in der Pruefliste
+      // von Hand ergaenzt werden.
+      items.push({ term: line, definition: "", example: "" });
+    }
+  }
+  return items;
+}
+
+const OCR_LOAD_TIMEOUT_MS = 45000;
+const OCR_RECOGNIZE_TIMEOUT_MS = 60000;
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function ocrImage(buffer) {
+  // errorHandler ist erforderlich: ohne ihn wirft tesseract.js interne Worker-Fehler
+  // (z.B. fehlgeschlagener Download der Sprachdaten) unbehandelt und reisst den
+  // gesamten Node-Prozess mit. Der errorHandler selbst darf NICHT werfen - er wird
+  // synchron aus einem Event-Handler aufgerufen, ein Wurf hier waere ebenso fatal.
+  // Zusaetzlich haengt tesseract.js bei manchen internen Fehlern (z.B. Netzwerkfehler
+  // beim Sprachdaten-Download) auf unbestimmte Zeit, ohne die createWorker()-Promise
+  // je aufzuloesen - daher zusaetzlich per withTimeout absichern.
+  const worker = await withTimeout(
+    createWorker(["deu", "eng"], undefined, {
+      errorHandler: (err) => {
+        console.error("Tesseract worker error:", err);
+      },
+    }),
+    OCR_LOAD_TIMEOUT_MS,
+    "Die Texterkennung konnte nicht geladen werden (Zeituberschreitung). Falls dies der erste " +
+      "Foto-Import ist, werden dafuer einmalig Sprachdaten aus dem Internet geladen - bitte " +
+      "Internetverbindung pruefen und erneut versuchen."
+  );
+  try {
+    const {
+      data: { text },
+    } = await withTimeout(worker.recognize(buffer), OCR_RECOGNIZE_TIMEOUT_MS, "Zeitueberschreitung bei der Texterkennung.");
+    return text;
+  } finally {
+    worker.terminate().catch(() => {});
+  }
+}
+
+async function extractPdfText(buffer) {
+  const result = await pdfParse(buffer);
+  return result.text || "";
+}
+
+importRouter.post("/extract", upload.single("file"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "Keine Datei hochgeladen." });
   }
 
-  const base64 = req.file.buffer.toString("base64");
-  const contentBlock =
-    req.file.mimetype === "application/pdf"
-      ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }
-      : { type: "image", source: { type: "base64", media_type: req.file.mimetype, data: base64 } };
-
   try {
-    const client = new Anthropic();
-    const response = await client.beta.messages.parse({
-      model: "claude-opus-5",
-      max_tokens: 8000,
-      messages: [
-        {
-          role: "user",
-          content: [
-            contentBlock,
-            {
-              type: "text",
-              text:
-                "Das ist ein Foto oder PDF mit Vokabeln oder Fachbegriffen (z.B. aus einem Schulheft, Skript " +
-                "oder Lehrbuch). Extrahiere alle erkennbaren Begriff-Erklaerung-Paare. Das kann eine Vokabel " +
-                "mit fremdsprachiger Uebersetzung sein oder ein nicht-fremdsprachiger Fachbegriff mit seiner " +
-                "Definition/Erklaerung. Uebernimm die Begriffe und Erklaerungen moeglichst wortgetreu aus der " +
-                "Vorlage, korrigiere nur offensichtliche Erkennungsfehler. Wenn zu einem Begriff ein Beispielsatz " +
-                "in der Vorlage steht, uebernimm ihn ins example-Feld, sonst lasse es leer.",
-            },
-          ],
-        },
-      ],
-      output_format: betaZodOutputFormat(ExtractedItemsSchema),
-    });
-
-    if (!response.parsed) {
-      return res.status(502).json({ error: "Die KI konnte keine Begriffe strukturiert zurueckgeben. Bitte erneut versuchen." });
+    let text;
+    if (req.file.mimetype === "application/pdf") {
+      text = await extractPdfText(req.file.buffer);
+      if (text.trim().length < 4) {
+        return res.status(422).json({
+          error:
+            "Im PDF konnte kein Text gefunden werden (vermutlich ein eingescanntes/fotografiertes PDF ohne Textebene). " +
+            "Bitte stattdessen ein Foto der Seite hochladen oder die Karten manuell eintragen.",
+        });
+      }
+    } else {
+      text = await ocrImage(req.file.buffer);
     }
 
-    res.json({ items: response.parsed.items });
+    const items = parseLinesToItems(text);
+    res.json({ items, rawText: text });
   } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) {
-      return res.status(503).json({ error: "Der ANTHROPIC_API_KEY ist ungueltig." });
-    }
-    if (err instanceof Anthropic.RateLimitError) {
-      return res.status(429).json({ error: "Zu viele Anfragen an die KI. Bitte kurz warten und erneut versuchen." });
-    }
-    if (err instanceof Anthropic.APIError) {
-      return res.status(502).json({ error: `KI-Fehler: ${err.message}` });
-    }
     console.error("Import extract failed:", err);
-    res.status(500).json({ error: "Unerwarteter Fehler bei der Extraktion." });
+    res.status(500).json({
+      error: err instanceof Error && err.message ? err.message : "Die Datei konnte nicht verarbeitet werden. Bitte erneut versuchen.",
+    });
   }
 });
 

@@ -40,9 +40,4 @@ app.use((err, req, res, next) => {
 const port = Number(process.env.PORT) || 3000;
 app.listen(port, () => {
   console.log(`Vokabeltrainer laeuft auf http://localhost:${port}`);
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn(
-      "Hinweis: ANTHROPIC_API_KEY ist nicht gesetzt - der Foto/PDF-Import (KI-Erkennung) funktioniert erst, wenn er in der .env-Datei eingetragen wird."
-    );
-  }
 });
